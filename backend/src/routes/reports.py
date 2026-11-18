@@ -17,6 +17,23 @@ def detail(id:int,db=Depends(database),u=Depends(current)):
  obj=db.get(Run,id)
  if not obj: raise HTTPException(404,'报告不存在')
  return row(obj)
+@router.get('/runs/{id}/trace')
+def trace(id:int,index:int,db=Depends(database),u=Depends(current)):
+ from datetime import datetime,timezone
+ from src.services.timegrid import trace_segments,span_minutes
+ obj=db.get(Run,id)
+ if not obj or obj.status!='completed': raise HTTPException(409,'报告尚未完成')
+ snap=obj.snapshot or {}
+ if 'pairs' not in snap: raise HTTPException(422,'单地口径报告无两地交集时段可追溯')
+ sources=snap['sources']
+ if not 0<=index<len(sources): raise HTTPException(422,'请求序号超出范围')
+ s=sources[index]
+ pair=next((p for p in snap['pairs'] if p['department']==s['department']),None)
+ if not pair: raise HTTPException(422,'快照中找不到该小组绑定的日历组合')
+ a=datetime.fromisoformat(s['opened']).astimezone(timezone.utc)
+ b=datetime.fromisoformat(s['closed']).astimezone(timezone.utc)
+ grid,segs,truncated=trace_segments(pair['data']['home'],pair['data']['away'],a,b)
+ return {'index':index,'source':s,'pair':{'department':pair['department'],'name':pair['name'],'version':pair['version']},'total_minutes':span_minutes(grid,a,b),'truncated':truncated,'segments':segs}
 @router.post('/runs/{id}/approve')
 def review(id:int,b:ReviewInput,db=Depends(database),u=Depends(admin)): return row(approve(db,u,id,b.note))
 @router.get('/runs/{id}/csv')

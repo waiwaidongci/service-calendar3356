@@ -33,3 +33,27 @@ def validate_policy(d):
   except Exception:raise ValueError('假日需为ISO日期')
  if not isinstance(d.get('sla_minutes'),dict) or not d['sla_minutes']:raise ValueError('SLA优先级阈值不能为空')
  for v in d['sla_minutes'].values():number(v,'SLA分钟',minimum=1)
+def validate_calendar(cal,label):
+ if not isinstance(cal,dict): raise ValueError(label+'日历需为对象')
+ from zoneinfo import ZoneInfo
+ from datetime import date
+ try:ZoneInfo(str(cal.get('timezone')))
+ except Exception:raise ValueError(label+'时区无效')
+ if not isinstance(cal.get('weekdays'),list) or not cal['weekdays'] or any(type(x)!=int or not 0<=x<=6 for x in cal['weekdays']):raise ValueError(label+'工作日需为0到6的数组')
+ windows=cal.get('windows')
+ if not isinstance(windows,list) or not windows or len(windows)>12 or any(not isinstance(x,list) or len(x)!=2 or any(type(t)!=int for t in x) for x in windows):raise ValueError(label+'工作时窗需为最多12个二元素整数数组')
+ prev=-1
+ for a,b in sorted(windows):
+  if not 0<=a<1440 or not a<b<=2880 or b-a>1440 or a<min(prev,1440):raise ValueError(label+'工作时窗必须不重叠；开始分钟0到1440，跨午夜班次结束可至2880并归开班日，单班不超过24小时')
+  prev=b
+ if not isinstance(cal.get('holidays',[]),list) or len(cal.get('holidays',[]))>366:raise ValueError(label+'假日需为不超过366项的数组')
+ for x in cal.get('holidays',[]):
+  try:date.fromisoformat(x)
+  except Exception:raise ValueError(label+'假日需为ISO日期')
+def validate_pair(d):
+ if not isinstance(d,dict): raise ValueError('日历组合需为对象')
+ if not isinstance(d.get('name'),str) or not 2<=len(d['name'])<=120: raise ValueError('组合名不合法')
+ if not isinstance(d.get('department'),str) or not 1<=len(d['department'])<=100: raise ValueError('绑定小组不能为空或过长')
+ validate_calendar(d.get('home'),'本地');validate_calendar(d.get('away'),'协作地')
+ if not isinstance(d.get('sla_minutes'),dict) or not d['sla_minutes']: raise ValueError('SLA优先级阈值不能为空')
+ for v in d['sla_minutes'].values():number(v,'SLA分钟',minimum=1)

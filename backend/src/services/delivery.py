@@ -14,7 +14,8 @@ def tick(db):
   if run and run.approved and run.status=='completed':
    key=f'{schedule.id}:{schedule.next_at}'
    if not db.query(Delivery).filter_by(due_key=key).first():
-    db.add(Delivery(schedule_id=schedule.id,run_id=run.id,due_key=key,created=now,payload={'name':run.name,'checksum':run.checksum,'result':run.result,'review':run.review,'policy':run.snapshot['policy']}))
+    policy=run.snapshot.get('policy') or {'version':'两地日历组合','pairs':[{'department':p['department'],'name':p['name'],'version':p['version']} for p in run.snapshot.get('pairs',[])]}
+    db.add(Delivery(schedule_id=schedule.id,run_id=run.id,due_key=key,created=now,payload={'name':run.name,'checksum':run.checksum,'result':run.result,'review':run.review,'policy':policy}))
     log(db,'worker','delivery.created',key)
   schedule.next_at=now+schedule.interval_seconds
  db.commit()
